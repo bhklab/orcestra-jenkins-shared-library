@@ -1,0 +1,11 @@
+notifyStage(stage: 'Checkout', status: 'running')
+
+Sends a pipeline stage status event to the Orcestra API.
+
+Required environment/parameters:
+- RUN_ID
+- PIPELINE_NAME
+- ORCESTRA_API_URL
+
+Required Jenkins credential:
+- orcestra-api-token
