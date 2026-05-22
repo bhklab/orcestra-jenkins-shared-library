@@ -12,7 +12,7 @@ def call(Map args = [:]) {
         status           : status,
         message          : message,
         jenkins_build_url: env.BUILD_URL,
-        email:           : env.EMAIL
+        email            : env.EMAIL
     ])
 
     writeFile file: 'stage-event.json', text: payload
