@@ -1,0 +1,8 @@
+
+Defines `call(Map args = [:])` which attempts to send a stage notification by calling `notifyStage(args)`.
+
+The call is wrapped in a `try/catch` so that any exception thrown while sending the notification is caught. On error it logs a warning like:
+
+	- `WARNING: Failed to send stage notification: <error>`
+
+This function intentionally swallows notification errors to avoid failing the pipeline when notification delivery fails.

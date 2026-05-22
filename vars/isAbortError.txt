@@ -1,0 +1,9 @@
+Defines `call(err)` as a helper function that accepts an error object.
+
+It checks the error by inspecting the exception class name and message, and returns `true` when the error looks like a Jenkins abort/interrupt. Specifically, it detects:
+  - `FlowInterruptedException` in the class name,
+  - `FlowInterruptedException` in the message,
+  - `Aborted by` in the message,
+  - `Queue task was cancelled` in the message.
+
+This makes the function useful for identifying aborted pipeline executions.

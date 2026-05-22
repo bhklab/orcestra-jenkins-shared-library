@@ -1,0 +1,7 @@
+Runs the Pixi + Snakemake pipeline inside a container and notifies each stage.
+
+- `call(Map args = [:])` accepts `containerName` and `gcsBucket` (defaults: `pixi`, `gs://nicholas-testing`).
+- Executes stages: Checkout, Install Pixi Environment, Dry Run, Run Pipeline, optional Run QC, and Upload outputs to GCS.
+- Each stage runs in the specified container and is wrapped with `runStageWithNotification(...)` so notifications report `running`/`succeeded`/`failed`.
+- Uploads listed output directories to `${gcsBucket}/pipelines/${PIPELINE_NAME}/${RUN_ID}/`.
+- Errors are propagated; notification helpers prevent notification failures from breaking the pipeline.

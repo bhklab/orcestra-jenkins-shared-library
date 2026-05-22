@@ -1,0 +1,12 @@
+Defines `call(String stageName, Closure body)` which runs a pipeline stage with notifications.
+
+Behavior:
+  - Sets `env.CURRENT_PIPELINE_STAGE` to the provided `stageName`.
+  - Sends a `running` notification using `notifyStageSafe(stage: stageName, status: 'running')` before executing the stage body.
+  - Executes the provided `body` closure.
+  - On failure, checks `isAbortError(err)`:
+      - If the error is an abort/interrupt, it logs that the stage was aborted and skips sending a `failed` notification.
+      - Otherwise, it sends a `failed` notification (including the error message) and clears `env.CURRENT_PIPELINE_STAGE`.
+  - Rethrows the original error after handling notifications so upstream behavior is preserved.
+
+This helper ensures stages always notify their start and end states while avoiding noisy failure notifications for user-initiated aborts.
