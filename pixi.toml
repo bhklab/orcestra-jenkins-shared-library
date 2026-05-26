@@ -1,0 +1,12 @@
+[workspace]
+channels = ["conda-forge"]
+platforms = ["linux-64", "osx-arm64", "osx-64"]
+
+[dependencies]
+nodejs = ">=20,<23"
+
+[tasks]
+lint = "npx npm-groovy-lint -c .groovylintrc.json vars/**/*.groovy"
+format = "npx npm-groovy-lint -c .groovylintrc.json --format vars/**/*.groovy"
+fix = "npx npm-groovy-lint -c .groovylintrc.json --fix vars/**/*.groovy"
+lint-fix = { depends-on = ["format", "fix", "lint"] }

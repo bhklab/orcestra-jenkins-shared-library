@@ -1,0 +1,16 @@
+{
+  "extends": "recommended-jenkinsfile",
+  "rules": {
+    "comments.ClassJavadoc": "off",
+    "formatting.Indentation": {
+      "spacesPerIndentLevel": 4,
+      "severity": "info"
+    },
+    "linelength.LineLength": {
+      "length": 140,
+      "severity": "info"
+    },
+    "UnnecessaryReturnKeyword": "error",
+    "MethodSize": "off"
+  }
+}

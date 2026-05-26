@@ -1,4 +1,4 @@
-def call(String stageName, Closure body) {
+void call(String stageName, Closure body) {
     env.CURRENT_PIPELINE_STAGE = stageName
 
     notifyStageSafe(stage: stageName, status: 'running')
