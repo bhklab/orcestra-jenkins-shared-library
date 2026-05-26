@@ -27,6 +27,31 @@ def call(Map args = [:]) {
         }
     }
 
+    String verifyFilesStage = 'Verify Snakemake and config files'
+
+    stage(verifyFilesStage) {
+        container(containerName) {
+            runStageWithNotification(verifyFilesStage) {
+                sh '''#!/usr/bin/env bash
+                    set -euo pipefail
+
+                    if [ ! -f "${SNAKEFILE_PATH}" ]; then
+                    echo "Error: Snakefile not found at ${SNAKEFILE_PATH}"
+                    exit 1
+                    fi
+
+                    if [ ! -f "${CONFIG_FILE_PATH}" ]; then
+                    echo "Error: Config file not found at ${CONFIG_FILE_PATH}"
+                    exit 1
+                    fi
+
+                    echo "Found Snakefile at ${SNAKEFILE_PATH}"
+                    echo "Found config file at ${CONFIG_FILE_PATH}"
+                '''.stripIndent()
+            }
+        }
+    }
+    
     String installStage = 'Install Pixi Environment'
 
     stage(installStage) {
