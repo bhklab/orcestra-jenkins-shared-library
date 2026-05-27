@@ -140,31 +140,35 @@ def call(Map args = [:]) {
         container(containerName) {
             runStageWithNotification(uploadStage) {
                 withEnv(["GCS_BUCKET=${gcsBucket}"]) {
+                    writeFile(
+                        file: 'parse_output_dirs.py',
+                        text: '''import json
+import os
+
+raw = os.environ.get("OUTPUT_DIRECTORIES_JSON", "[]")
+dirs = json.loads(raw)
+
+if not isinstance(dirs, list):
+    raise ValueError("OUTPUT_DIRECTORIES_JSON must be a JSON list")
+
+for directory in dirs:
+    if not isinstance(directory, str):
+        raise ValueError("Each output directory must be a string")
+
+    directory = directory.strip()
+
+    if directory:
+        print(directory)
+'''
+                    )
+
                     runShellWithCapturedError(uploadStage, '''
                         cd repo
 
                         echo "Output directories JSON:"
                         echo "${OUTPUT_DIRECTORIES_JSON}"
 
-                        python3 - <<'PY' > /tmp/output_dirs.txt
-                        import json
-                        import os
-
-                        raw = os.environ.get("OUTPUT_DIRECTORIES_JSON", "[]")
-                        dirs = json.loads(raw)
-
-                        if not isinstance(dirs, list):
-                            raise ValueError("OUTPUT_DIRECTORIES_JSON must be a JSON list")
-
-                        for directory in dirs:
-                            if not isinstance(directory, str):
-                                raise ValueError("Each output directory must be a string")
-
-                            directory = directory.strip()
-
-                            if directory:
-                                print(directory)
-                        PY
+                        python3 ../parse_output_dirs.py > /tmp/output_dirs.txt
 
                         if [ ! -s /tmp/output_dirs.txt ]; then
                             echo "No output directories were provided in OUTPUT_DIRECTORIES_JSON"
