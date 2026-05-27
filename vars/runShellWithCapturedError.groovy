@@ -39,6 +39,6 @@ void call(String label, String scriptBody, int tailLines = 80) {
 
         output = output ?: "Command failed with exit code $status, but no output was captured."
 
-        error("${label} failed with exit code ${status}\\n\\n${output}")
+        error("${label} failed with exit code ${status} || Error: ${output}")
     }
 }
