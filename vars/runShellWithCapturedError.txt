@@ -1,0 +1,10 @@
+Executes a shell script with error capture and reporting.
+
+Defines `call(String label, String scriptBody, int tailLines = 80)` which:
+- Sanitizes the label to create safe filenames (`.jenkins-<label>.sh` and `.jenkins-<label>.log`).
+- Writes the script body to a file with `#!/usr/bin/env bash` and `set -euo pipefail`.
+- Runs the script, capturing both stdout and stderr to a log file.
+- On failure (non-zero exit), tail the last 80 lines (or specified count) of the log and throw an error with the label, exit code, and output.
+- If no output was captured, reports a default message.
+
+Useful for running long scripts in Jenkins where you want detailed error output without the entire log.

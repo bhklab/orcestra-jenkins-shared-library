@@ -15,6 +15,7 @@ It provides common pipeline utilities that make it easier to:
 - `notifyStageSafe.groovy` — calls `notifyStage` safely and logs a warning if notifications fail.
 - `runStageWithNotification.groovy` — runs a stage body with `running`/`succeeded`/`failed` notifications and abort-aware handling.
 - `runPixiSnakemakePipeline.groovy` — orchestrates a Pixi-backed Snakemake pipeline inside a container and uploads outputs to GCS.
+- `runShellWithCapturedError.groovy` — executes a shell script with error capture, writing output to a log file and reporting the last 80 lines on failure.
 - `isAbortError.groovy` — detects abort/interrupt exceptions so failed notifications can be skipped on user abort.
 
 Use this library from a Jenkinsfile by loading it as a shared library and invoking the provided vars as pipeline steps.
