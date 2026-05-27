@@ -146,7 +146,7 @@ def call(Map args = [:]) {
                         echo "Output directories JSON:"
                         echo "${OUTPUT_DIRECTORIES_JSON}"
 
-                        python - <<'PY' > /tmp/output_dirs.txt
+                        python3 - <<'PY' > /tmp/output_dirs.txt
                         import json
                         import os
 
