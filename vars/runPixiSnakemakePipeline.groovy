@@ -190,7 +190,7 @@ for directory in dirs:
                             gcloud storage cp \
                                 --recursive \
                                 "${output_dir}" \
-                                "${GCS_BUCKET}/pipelines/${PIPELINE_NAME}/${RUN_ID}/${output_dir}/"
+                                "${GCS_BUCKET}/pipelines/${PIPELINE_NAME}/${RUN_ID}/"
 
                         done < /tmp/output_dirs.txt
 
@@ -200,7 +200,7 @@ for directory in dirs:
                             gcloud storage cp \
                                 --recursive \
                                 "${QC_OUTPUT_DIRECTORY}" \
-                                "${GCS_BUCKET}/pipelines/${PIPELINE_NAME}/${RUN_ID}/${QC_OUTPUT_DIRECTORY}/"
+                                "${GCS_BUCKET}/pipelines/${PIPELINE_NAME}/${RUN_ID}/"
                         fi
                     '''.stripIndent())
                 }
