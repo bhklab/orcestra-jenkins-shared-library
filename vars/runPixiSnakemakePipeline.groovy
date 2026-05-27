@@ -5,8 +5,7 @@ def call(Map args = [:]) {
     stage(checkoutStage) {
         container(containerName) {
             runStageWithNotification(checkoutStage) {
-                sh '''#!/usr/bin/env bash
-                    set -euo pipefail
+                runShellWithCapturedError(checkoutStage, '''
 
                     if [ -n "${BRANCH}" ]; then
                     git clone --branch "${BRANCH}" "${REPO_URL}" repo
@@ -22,7 +21,7 @@ def call(Map args = [:]) {
 
                     echo "Checked out commit:"
                     git rev-parse HEAD
-                '''.stripIndent()
+                '''.stripIndent())
             }
         }
     }
@@ -32,9 +31,9 @@ def call(Map args = [:]) {
     stage(verifyFilesStage) {
         container(containerName) {
             runStageWithNotification(verifyFilesStage) {
-                sh '''#!/usr/bin/env bash
-                    set -euo pipefail
+                runShellWithCapturedError(verifyFilesStage, '''
 
+                    cd repo
                     if [ ! -f "${SNAKEFILE_PATH}" ]; then
                     echo "Error: Snakefile not found at ${SNAKEFILE_PATH}"
                     exit 1
@@ -47,22 +46,21 @@ def call(Map args = [:]) {
 
                     echo "Found Snakefile at ${SNAKEFILE_PATH}"
                     echo "Found config file at ${CONFIG_FILE_PATH}"
-                '''.stripIndent()
+                '''.stripIndent())
             }
         }
     }
-    
+
     String installStage = 'Install Pixi Environment'
 
     stage(installStage) {
         container(containerName) {
             runStageWithNotification(installStage) {
-                sh '''#!/usr/bin/env bash
-                    set -euo pipefail
+                runShellWithCapturedError(installStage, '''
 
                     cd repo
                     pixi install --locked || pixi install
-                '''.stripIndent()
+                '''.stripIndent())
             }
         }
     }
@@ -72,9 +70,7 @@ def call(Map args = [:]) {
     stage(dryRunStage) {
         container(containerName) {
             runStageWithNotification(dryRunStage) {
-                sh '''#!/usr/bin/env bash
-                    set -euo pipefail
-
+                runShellWithCapturedError(dryRunStage, '''
                     cd repo
 
                     pixi run snakemake \
@@ -83,7 +79,7 @@ def call(Map args = [:]) {
                     --snakefile "${SNAKEFILE_PATH}" \
                     --configfile "${CONFIG_FILE_PATH}" \
                     --printshellcmds
-                '''.stripIndent()
+                '''.stripIndent())
             }
         }
     }
@@ -93,9 +89,7 @@ def call(Map args = [:]) {
     stage(runPipelineStage) {
         container(containerName) {
             runStageWithNotification(runPipelineStage) {
-                sh '''#!/usr/bin/env bash
-                    set -euo pipefail
-
+                runShellWithCapturedError(runPipelineStage, '''
                     cd repo
 
                     if [ -n "${PIPELINE_RUN_COMMAND}" ]; then
@@ -113,7 +107,7 @@ def call(Map args = [:]) {
                         --show-failed-logs \
                         --rerun-incomplete
                     fi
-                '''.stripIndent()
+                '''.stripIndent())
             }
         }
     }
@@ -124,8 +118,7 @@ def call(Map args = [:]) {
         if (env.QC_COMMAND?.trim()) {
             container(containerName) {
                 runStageWithNotification(qcStage) {
-                    sh '''#!/usr/bin/env bash
-                        set -euo pipefail
+                    runShellWithCapturedError(qcStage, '''
 
                         cd repo
 
@@ -133,7 +126,7 @@ def call(Map args = [:]) {
                         echo "${QC_COMMAND}"
 
                         eval "${QC_COMMAND}"
-                    '''.stripIndent()
+                    '''.stripIndent())
                 }
             }
         } else {
@@ -146,67 +139,67 @@ def call(Map args = [:]) {
     stage(uploadStage) {
         container(containerName) {
             runStageWithNotification(uploadStage) {
-                sh """#!/usr/bin/env bash
-                    set -euo pipefail
+                withEnv(["GCS_BUCKET=${gcsBucket}"]) {
+                    runShellWithCapturedError(uploadStage, '''
+                        cd repo
 
-                    cd repo
+                        echo "Output directories JSON:"
+                        echo "${OUTPUT_DIRECTORIES_JSON}"
 
-                    echo "Output directories JSON:"
-                    echo "\${OUTPUT_DIRECTORIES_JSON}"
+                        python - <<'PY' > /tmp/output_dirs.txt
+                        import json
+                        import os
 
-                    python - <<'PY' > /tmp/output_dirs.txt
-                    import json
-                    import os
+                        raw = os.environ.get("OUTPUT_DIRECTORIES_JSON", "[]")
+                        dirs = json.loads(raw)
 
-                    raw = os.environ.get("OUTPUT_DIRECTORIES_JSON", "[]")
-                    dirs = json.loads(raw)
+                        if not isinstance(dirs, list):
+                            raise ValueError("OUTPUT_DIRECTORIES_JSON must be a JSON list")
 
-                    if not isinstance(dirs, list):
-                        raise ValueError("OUTPUT_DIRECTORIES_JSON must be a JSON list")
+                        for directory in dirs:
+                            if not isinstance(directory, str):
+                                raise ValueError("Each output directory must be a string")
 
-                    for directory in dirs:
-                        if not isinstance(directory, str):
-                            raise ValueError("Each output directory must be a string")
+                            directory = directory.strip()
 
-                        directory = directory.strip()
+                            if directory:
+                                print(directory)
+                        PY
 
-                        if directory:
-                            print(directory)
-                    PY
+                        if [ ! -s /tmp/output_dirs.txt ]; then
+                            echo "No output directories were provided in OUTPUT_DIRECTORIES_JSON"
+                            exit 1
+                        fi
 
-                    if [ ! -s /tmp/output_dirs.txt ]; then
-                    echo "No output directories were provided in OUTPUT_DIRECTORIES_JSON"
-                    exit 1
-                    fi
+                        while IFS= read -r output_dir; do
+                            [ -z "${output_dir}" ] && continue
 
-                    while IFS= read -r output_dir; do
-                    [ -z "\${output_dir}" ] && continue
+                            echo "Checking output directory: ${output_dir}"
 
-                    echo "Checking output directory: \${output_dir}"
+                            if [ ! -d "${output_dir}" ]; then
+                                echo "Output directory does not exist: ${output_dir}"
+                                exit 1
+                            fi
 
-                    if [ ! -d "\${output_dir}" ]; then
-                        echo "Output directory does not exist: \${output_dir}"
-                        exit 1
-                    fi
+                            echo "Uploading ${output_dir} to ${GCS_BUCKET}/pipelines/${PIPELINE_NAME}/${RUN_ID}/${output_dir}/"
 
-                    echo "Uploading \${output_dir} to ${gcsBucket}/pipelines/\${PIPELINE_NAME}/\${RUN_ID}/\${output_dir}/"
+                            gcloud storage cp \
+                                --recursive \
+                                "${output_dir}" \
+                                "${GCS_BUCKET}/pipelines/${PIPELINE_NAME}/${RUN_ID}/${output_dir}/"
 
-                    gcloud storage cp \\
-                        --recursive \\
-                        "\${output_dir}" \\
-                        "${gcsBucket}/pipelines/\${PIPELINE_NAME}/\${RUN_ID}/\${output_dir}/"
+                        done < /tmp/output_dirs.txt
 
-                    done < /tmp/output_dirs.txt
+                        if [ -n "${QC_OUTPUT_DIRECTORY}" ] && [ -d "${QC_OUTPUT_DIRECTORY}" ]; then
+                            echo "Uploading QC output directory: ${QC_OUTPUT_DIRECTORY}"
 
-                    if [ -n "\${QC_OUTPUT_DIRECTORY}" ] && [ -d "\${QC_OUTPUT_DIRECTORY}" ]; then
-                    echo "Uploading QC output directory: \${QC_OUTPUT_DIRECTORY}"
-
-                    gcloud storage cp \\
-                        --recursive \\
-                        "\${QC_OUTPUT_DIRECTORY}" \\
-                        "${gcsBucket}/pipelines/\${PIPELINE_NAME}/\${RUN_ID}/\${QC_OUTPUT_DIRECTORY}/"
-                    fi
-                """.stripIndent()
+                            gcloud storage cp \
+                                --recursive \
+                                "${QC_OUTPUT_DIRECTORY}" \
+                                "${GCS_BUCKET}/pipelines/${PIPELINE_NAME}/${RUN_ID}/${QC_OUTPUT_DIRECTORY}/"
+                        fi
+                    '''.stripIndent())
+                }
             }
         }
     }

@@ -5,11 +5,13 @@ void call(String stageName, Closure body) {
 
     try {
         body.call()
+        notifyStageSafe(stage: stageName, status: 'succeeded')
+        env.CURRENT_PIPELINE_STAGE = ''
     } catch (err) {
         if (isAbortError(err)) {
             echo "Stage '${stageName}' was aborted; skipping failed stage notification."
         } else {
-            notifyStageSafe(stage: stageName, status: 'failed', message: err.toString())
+            notifyStageSafe(stage: stageName, status: 'failed', message: "${err}")
             env.CURRENT_PIPELINE_STAGE = ''
         }
 
