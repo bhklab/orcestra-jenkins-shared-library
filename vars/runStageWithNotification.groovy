@@ -5,7 +5,6 @@ void call(String stageName, Closure body) {
 
     try {
         body.call()
-        notifyStageSafe(stage: stageName, status: 'succeeded')
         env.CURRENT_PIPELINE_STAGE = ''
     } catch (err) {
         if (isAbortError(err)) {
