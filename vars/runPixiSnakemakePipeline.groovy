@@ -271,6 +271,7 @@ print(f"Wrote checksum_manifest.json with {manifest['file_count']} files")
                     writeFile(
                         file: 'parse_output_dirs.py',
                         text: '''import json
+import os
 
 raw = os.environ.get("OUTPUT_DIRECTORIES_JSON", "[]")
 dirs = json.loads(raw)
