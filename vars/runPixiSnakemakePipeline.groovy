@@ -134,6 +134,134 @@ def call(Map args = [:]) {
         }
     }
 
+    String checksumStage = 'Generate output checksums'
+
+    stage(checksumStage) {
+        container(containerName) {
+            runStageWithNotification(checksumStage) {
+                withEnv(["GCS_BUCKET=${gcsBucket}"]) {
+                    writeFile(
+                        file: 'build_checksum_manifest.py',
+                        text: '''import json
+import os
+import hashlib
+from pathlib import Path
+from datetime import datetime, timezone
+
+def calculate_checksums(path: Path, chunk_size: int = 1024 * 1024) -> dict:
+    sha256 = hashlib.sha256()
+    md5 = hashlib.md5()
+
+    with path.open("rb") as fp:
+        for chunk in iter(lambda: fp.read(chunk_size), b""):
+            sha256.update(chunk)
+            md5.update(chunk)
+
+    return {
+        "sha256": sha256.hexdigest(),
+        "md5": md5.hexdigest(),
+        "size_bytes": path.stat().st_size,
+    }
+
+def collect_files(path: Path) -> list[Path]:
+    if path.is_file():
+        return [path]
+
+    if path.is_dir():
+        return sorted([p for p in path.rglob("*") if p.is_file()])
+
+    raise FileNotFoundError(f"Output path does not exist: {path}")
+
+raw = os.environ.get("OUTPUT_DIRECTORIES_JSON", "[]")
+output_dirs = json.loads(raw)
+
+if not isinstance(output_dirs, list):
+    raise ValueError("OUTPUT_DIRECTORIES_JSON must be a JSON list")
+
+repo_root = Path("repo").resolve()
+
+pipeline_name = os.environ["PIPELINE_NAME"]
+run_id = os.environ["RUN_ID"]
+gcs_bucket = os.environ["GCS_BUCKET"].rstrip("/")
+gcs_run_prefix = f"{gcs_bucket}/pipelines/{pipeline_name}/{run_id}"
+
+manifest = {
+    "pipeline_name": pipeline_name,
+    "run_id": run_id,
+    "generated_at": datetime.now(timezone.utc).isoformat(),
+    "checksum_algorithm": "sha256",
+    "secondary_checksum_algorithm": "md5",
+    "gcs_run_prefix": gcs_run_prefix,
+    "files": [],
+}
+
+seen = set()
+
+for output_dir in output_dirs:
+    if not isinstance(output_dir, str):
+        raise ValueError("Each output directory must be a string")
+
+    output_dir = output_dir.strip()
+
+    if not output_dir:
+        continue
+
+    output_path = repo_root / output_dir
+
+    if not output_path.exists():
+        raise FileNotFoundError(f"Output path does not exist: {output_dir}")
+
+    for file_path in collect_files(output_path):
+        relative_path = file_path.relative_to(repo_root).as_posix()
+
+        if relative_path in seen:
+            continue
+
+        seen.add(relative_path)
+
+        checksums = calculate_checksums(file_path)
+
+        manifest["files"].append({
+            "relative_path": relative_path,
+            "filename": file_path.name,
+            "size_bytes": checksums["size_bytes"],
+            "sha256": checksums["sha256"],
+            "md5": checksums["md5"],
+            "gcs_uri": f"{gcs_run_prefix}/{relative_path}",
+        })
+
+manifest["file_count"] = len(manifest["files"])
+
+Path("checksum_manifest.json").write_text(
+    json.dumps(manifest, indent=2) + "\\n",
+    encoding="utf-8",
+)
+
+print(f"Wrote checksum_manifest.json with {manifest['file_count']} files")
+'''
+                    )
+
+                    runShellWithCapturedError(checksumStage, '''
+                        echo "Generating checksum manifest"
+
+                        if command -v python3 >/dev/null 2>&1; then
+                            python3 build_checksum_manifest.py
+                        else
+                            cd repo
+                            pixi run python ../build_checksum_manifest.py
+                            cd ..
+                        fi
+
+                        echo "Checksum manifest:"
+                        cat checksum_manifest.json
+                    '''.stripIndent())
+
+                    archiveArtifacts artifacts: 'checksum_manifest.json', fingerprint: true
+                }
+            }
+        }
+    }
+
     String uploadStage = 'Upload outputs to GCS'
 
     stage(uploadStage) {
@@ -143,7 +271,6 @@ def call(Map args = [:]) {
                     writeFile(
                         file: 'parse_output_dirs.py',
                         text: '''import json
-import os
 
 raw = os.environ.get("OUTPUT_DIRECTORIES_JSON", "[]")
 dirs = json.loads(raw)
@@ -194,14 +321,11 @@ for directory in dirs:
 
                         done < /tmp/output_dirs.txt
 
-                        if [ -n "${QC_OUTPUT_DIRECTORY}" ] && [ -d "${QC_OUTPUT_DIRECTORY}" ]; then
-                            echo "Uploading QC output directory: ${QC_OUTPUT_DIRECTORY}"
+                        echo "Uploading checksum manifest"
 
-                            gcloud storage cp \
-                                --recursive \
-                                "${QC_OUTPUT_DIRECTORY}" \
-                                "${GCS_BUCKET}/pipelines/${PIPELINE_NAME}/${RUN_ID}/"
-                        fi
+                        gcloud storage cp \
+                            "../checksum_manifest.json" \
+                            "${GCS_BUCKET}/pipelines/${PIPELINE_NAME}/${RUN_ID}/checksum_manifest.json"
                     '''.stripIndent())
                 }
             }
