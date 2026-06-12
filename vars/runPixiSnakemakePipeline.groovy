@@ -192,7 +192,7 @@ manifest = {
     "checksum_algorithm": "sha256",
     "secondary_checksum_algorithm": "md5",
     "gcs_run_prefix": gcs_run_prefix,
-    "files": [],
+    "files": {},
 }
 
 seen = set()
@@ -221,14 +221,13 @@ for output_dir in output_dirs:
 
         checksums = calculate_checksums(file_path)
 
-        manifest["files"].append({
+        manifest["files"][file_path.name] = {
             "relative_path": relative_path,
-            "filename": file_path.name,
             "size_bytes": checksums["size_bytes"],
             "sha256": checksums["sha256"],
             "md5": checksums["md5"],
             "gcs_uri": f"{gcs_run_prefix}/{relative_path}",
-        })
+        }
 
 manifest["file_count"] = len(manifest["files"])
 
